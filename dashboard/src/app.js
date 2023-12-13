@@ -1,5 +1,15 @@
-const API_URL = "https://kupo-faithful-priority-kc9tx9.us1.demeter.run";
+const ENV = {};
 
+const START_DATE = new Date("2023-12-01T14:00:00Z");
+const END_DATE = new Date("2024-07-31T16:00:00Z");
+
+// Entry format:
+//
+//     {
+//       "name": "Matthias",
+//       "address": "addr_test1vpy32yjqdkvmq009lfxs8hwjklcy0m4kdqtnryt0hqply0gcsr5w4"
+//     }
+//
 const PLAYER_NAMES = "players.json";
 
 const STRATEGY_CONTROL = "control";
@@ -10,44 +20,67 @@ const TOTAL_REWARDS = 100;
 const MAX_CONTROL = 50;
 const SPLITTING_FACTOR = 1;
 
-function getPlayers(playerNames) {
-  return fetch(`${API_URL}/matches?order=oldest_first&created_after=35721000`)
-    .then(res => res.json())
-    .then(results => {
-      const utxos = new Map();
-      results.forEach(result => utxos.set(result.address, result))
-      return utxos
-    })
-    .then(utxos => Promise.all(playerNames.map(p => {
-      const utxo = utxos.get(p.address);
+const ONE_SECOND = 1000; // in ms
+const ONE_HOUR = 3600 * ONE_SECOND;
 
-      if (utxo != null) {
-        const slot = utxo.created_at.slot_no;
-        const blockIndex = utxo.transaction_index;
+const REFERENCE_SLOT = { date: new Date("2022-10-28T01:00:15Z"), slot: 259215 };
+const START_SLOT = getSlot(START_DATE);
+const END_SLOT = getSlot(END_DATE);
 
-        return fetch(`${API_URL}/metadata/${slot}?transaction_id=${utxo.transaction_id}`)
-          .then(res => res.json())
-          .then(metadata => {
-            const labels = (metadata[0] || {}).schema || {};
-            const metadatum = parseMetadatum(labels[METADATA_LABEL]);
+const ENDPOINT = {
+  matches(addr, before) {
+    return `${ENV.API_URL}/matches/${addr}?order=most_recent_first&created_before=${before}`;
+  },
 
-            if (typeof metadatum === "object" && metadatum != null) {
-              const { strategy, percentage } = metadatum;
-              if (isValidStrategy(strategy) && isValidPercentage(percentage)) {
-                return { ...p, choice: { strategy, slot, blockIndex, percentage } };
-              }
-            }
+  metadata(slot, transaction_id) {
+    return `${ENV.API_URL}/metadata/${slot}?transaction_id=${transaction_id}`;
+  }
+}
 
-            return p;
-          })
-      }
+function getSlot(when) {
+  const delta = when - REFERENCE_SLOT.date;
+  return Math.round(delta / 1000) + REFERENCE_SLOT.slot;
+}
 
-      return Promise.resolve(p);
-    })))
-    .catch(e => {
-      console.warn(e);
-      return [];
-    });
+async function getPlayers(playerNames) {
+  return Promise.all(playerNames.map(async player => {
+    console.log('fetching...', player);
+    const utxo = await fetch(ENDPOINT.matches(player.address, END_SLOT))
+      .then(res => res.json())
+      .then(res => res[0]);
+
+    if (utxo != null) {
+      return bindMetadata(player, utxo);
+    }
+
+    return Promise.resolve(player);
+  }))
+  .catch(e => {
+    console.warn(e);
+    return [];
+  });
+
+  function bindMetadata(player, utxo) {
+    const slot = utxo.created_at.slot_no;
+    const blockIndex = utxo.transaction_index;
+
+    return fetch(ENDPOINT.metadata(slot, utxo.transaction_id))
+      .then(res => res.json())
+      .then(metadata => {
+        const labels = (metadata[0] || {}).schema || {};
+        const metadatum = parseMetadatum(labels[METADATA_LABEL]);
+
+        if (typeof metadatum === "object" && metadatum != null) {
+          const { strategy, percentage } = metadatum;
+
+          if (isValidStrategy(strategy) && isValidPercentage(percentage)) {
+            return { ...player, choice: { strategy, slot, blockIndex, percentage } };
+          }
+        }
+
+        return player;
+      });
+  }
 
   function isValidStrategy(strategy) {
     return strategy === STRATEGY_FATE || strategy === STRATEGY_CONTROL
@@ -114,7 +147,7 @@ function mkLeaderboard(players) {
   const n = fate.length;
   const d = fateDenominator(n);
   const availableFateRewards = TOTAL_REWARDS - totalControlRewards;
-  fate.sort(byAscendingDate).forEach((p, i) => {
+  fate.sort(byDescendingDate).forEach((p, i) => {
     const score = Math.floor(availableFateRewards * Math.pow(i + 1, SPLITTING_FACTOR) / d);
     scores.push({ ...p, score });
   });
@@ -160,25 +193,25 @@ function mkLeaderboard(players) {
 
   function byDescendingScore(a, b) {
     if (a.score === b.score) {
-      return byAscendingDate(a, b);
+      return byDescendingDate(b, a);
     } else {
       return b.score - a.score;
     }
   }
 
-  function byAscendingDate(a, b) {
+  function byDescendingDate(a, b) {
     if (a.choice == null) {
-      return -1;
-    }
-
-    if (b.choice == null) {
       return 1;
     }
 
+    if (b.choice == null) {
+      return -1;
+    }
+
     if (a.choice.slot === b.choice.slot) {
-      return a.choice.blockIndex - b.choice.blockIndex;
+      return b.choice.blockIndex - a.choice.blockIndex;
     } else {
-      return a.choice.slot - b.choice.slot;
+      return b.choice.slot - a.choice.slot;
     }
   }
 }
@@ -190,22 +223,22 @@ function viewPlayer({ name, address, score, rank }) {
   wrapper.innerHTML = feather.icons[hasPlayed ? "check-circle" : "x-circle"].toSvg();
   const icon = wrapper.childNodes[0];
   icon.classList.add(hasPlayed ? "text-green-500" : "text-red-500");
-  icon.style = 'margin-left: auto';
+  icon.style = "margin-left: auto";
 
-  let medal = '';
+  let medal = "";
   if (rank === 1) {
-    medal = 'bg-yellow-300 text-white shadow-sm'
+    medal = "bg-yellow-300 text-white shadow-sm"
   } else if (rank === 2) {
-    medal = 'bg-zinc-400 text-white shadow-sm'
+    medal = "bg-zinc-400 text-white shadow-sm"
   } else if (rank === 3) {
-    medal = 'bg-amber-800 text-white shadow-sm'
+    medal = "bg-amber-800 text-white shadow-sm"
   }
 
   const el = document.createElement("article");
-  el.innerHTML = `<label class="px-6 py-3 rounded-full ${medal} text-base">${hasPlayed ? rank : '-'}</label>
+  el.innerHTML = `<label class="px-6 py-3 rounded-full ${medal} text-base">${hasPlayed ? rank : "-"}</label>
     <div class="flex flex-col">
       <h3 class="text-base">${name} <span class="hidden text-xs md:inline-block lg:text-sm">(${address})</span></h3>
-      <span class="${hasPlayed ? '' : 'hidden'} text-xs text-gray-500">${score} ${score === 1 ? "pt" : "pts" }</span>
+      <span class="${hasPlayed ? "" : "hidden"} text-xs text-gray-500">${score} ${score === 1 ? "pt" : "pts" }</span>
     </div>`;
   el.className = "flex items-center gap-x-8";
   el.appendChild(icon);
@@ -213,26 +246,88 @@ function viewPlayer({ name, address, score, rank }) {
   return el;
 }
 
-function viewLeaderboard(domElement, playerNames) {
+async function viewLeaderboard(domElement, playerNames) {
   return getPlayers(playerNames)
     .then(players => {
-      domElement.replaceChildren(...mkLeaderboard(players).map(viewPlayer));
+      if (players.length > 0) {
+        domElement.replaceChildren(...mkLeaderboard(players).map(viewPlayer));
+      }
     })
     .catch(console.warn);
 }
 
-function withPlayerNames(cb) {
-  fetch(PLAYER_NAMES, {cache: "no-cache"})
+function viewCountdown(domElement, now) {
+  if (now >= END_DATE) {
+    set("hours", "--");
+    set("minutes", "--");
+    set("seconds", "--");
+  } else if (now < START_DATE) {
+    const [hours, minutes, seconds] = explode(START_DATE - now);
+    set("hours", hours);
+    set("minutes", minutes);
+    set("seconds", seconds);
+  } else {
+    const [hours, minutes, seconds] = explode(END_DATE - now);
+    set("hours", hours);
+    set("minutes", minutes);
+    set("seconds", seconds);
+  }
+
+  function set(name, value = "--") {
+    domElement.querySelector(`#${name}`).innerText = typeof value === "number"
+      ? fmtTime(value)
+      : value;
+  }
+
+  function explode(t) {
+    const hms = 3600000;
+    const h = Math.floor(t / hms);
+
+    const mms = 60000;
+    const m = Math.floor((t - h * hms) / mms);
+
+    const sms = 1000;
+    const s = Math.floor((t - h * hms - m * mms) / sms);
+
+    return [h, m, s];
+  }
+
+  function fmtTime(t) {
+    return `00${t}`.slice(-2);
+  }
+}
+
+async function withPlayerNames(cb) {
+  fetch(PLAYER_NAMES, { cache: "no-cache" })
     .then(res => res.json())
     .then(cb, (e) => {
-      console.warn('withPlayerNames', e);
+      console.warn("withPlayerNames", e);
       cb([]);
     });
 }
 
-window.app = function app(domElement) {
+function setup() {
+  while (!ENV.API_URL) {
+    const cache = JSON.parse(localStorage.getItem("API_URL"));
+    if (cache && cache.ttl > Date.now()) {
+      ENV.API_URL = cache.value;
+    } else {
+      ENV.API_URL = prompt("Please indicate Kupo's server API url configured for Preview network.");
+      localStorage.setItem("API_URL", JSON.stringify({ value: ENV.API_URL, ttl: Date.now() + ONE_HOUR }));
+    }
+  }
+}
+
+window.app = async function app(leaderboard, countdown) {
+  setup();
+
+  setInterval(() => viewCountdown(
+    countdown || document.querySelector("#countdown"),
+    new Date()
+  ), ONE_SECOND);
+
   withPlayerNames(playerNames => {
-    viewLeaderboard(domElement, playerNames)
-      .then(() => setTimeout(() => app(domElement), 5000));
+    viewLeaderboard(leaderboard, playerNames)
+      .then(() => setTimeout(() => app(leaderboard), 10 * ONE_SECOND));
   });
 }
