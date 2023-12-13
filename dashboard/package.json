@@ -15,7 +15,7 @@
   },
   "scripts": {
     "dev": "parcel build && cp players.json dist/ && http-server dist/",
-    "build": "rm -rf ../docs && parcel build --public-url https://ktorz.github.io/holberton/ --dist-dir ../docs && cp players.json ../docs",
+    "build": "parcel build --public-url https://ktorz.github.io/holberton/ --dist-dir docs && cp players.json ./docs/ && touch ./docs/.nojekyll && mv docs ..",
     "kupo": "kupo --node-config $NODE_CONFIG/cardano-node/config.json --node-socket /tmp/node.socket --workdir ./db --match '{42}' --since 35721044.f08a7bfa1d24722f0f903de9ced7b61c37898794a9e839348ddde8700f16e8ab"
   }
 }
