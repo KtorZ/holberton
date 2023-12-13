@@ -6,7 +6,8 @@
 
 ## Part 2: Workshop (~3h)
 
-> **Warning**: **Pre-requisites**
+> [!IMPORTANT]
+> **Pre-requisites**
 >
 > - Python >= 3.7
 
@@ -39,7 +40,7 @@
 
 - The game ends at the end of an agreed time period.
 
-> **Note**
+> [!NOTE]
 >
 > In the Fate strategy, we'll split rewards using the following function:
 >
@@ -102,7 +103,7 @@ address = Address(payment_part=verification_key.hash(),
 - [ ] Create one file `me.sk` with a freshly generated secret key.
 - [ ] Create one file `me.addr` with an address identifying the secret key.
 
-> **Hint**
+> [!TIP]
 >
 > You can turn a signing_key and an address into a text-friendly representation by using `str`. For example `str(signing_key)`.
 
@@ -117,7 +118,7 @@ You'll need funds in order to submit transactions to the network. But worry not,
 - [ ] **(Bonus)** Monitor funds locked by your address using [PyCardano][].
 
 
-> **Hint**:
+> [!TIP]
 >
 > To do it programmatically, you'll need to query your available unspent transaction outputs (UTxO). You can do this directly from a _context_.
 > Note also that you can load your address as follows:
@@ -133,7 +134,7 @@ You'll need funds in order to submit transactions to the network. But worry not,
 
 Now is time to play the game and chose a strategy. The game is played by submitting a transaction to the network with some specific auxiliary data. On Cardano, auxiliary are associated with a label which is a non-negative number and some structured object.
 
-> **Note**
+> [!NOTE]
 >
 > For this session, we'll use the label: `42`.
 
