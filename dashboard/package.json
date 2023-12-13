@@ -1,0 +1,20 @@
+{
+  "name": "holberton",
+  "version": "1.0.0",
+  "description": "Dashboard for the blockchain introduction hackathon event.",
+  "author": "KtorZ <matthias.benkort@cardanofoundation.org>",
+  "license": "Apache-2.0",
+  "source": "src/index.html",
+  "devDependencies": {
+    "parcel": "^2.9.1",
+    "tailwindcss": "^3.3.2"
+  },
+  "dependencies": {
+    "feather-icons": "^4.29.0"
+  },
+  "scripts": {
+    "build": "parcel build",
+    "clean": "rm -f dist/*.js dist/*.svg dist/*.html dist/*.css dist/*.map",
+    "kupo": "kupo --node-config $NODE_CONFIG/cardano-node/config.json --node-socket /tmp/node.socket --workdir ./db --match '{42}' --since 35721044.f08a7bfa1d24722f0f903de9ced7b61c37898794a9e839348ddde8700f16e8ab"
+  }
+}
