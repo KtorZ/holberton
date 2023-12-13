@@ -8,4 +8,4 @@ context = BlockFrostChainContext(
 )
 
 with open(sys.argv[1] + "/me.addr", "r") as f:
-  print(context.utxos(Address.from_primitive(f.read())))
+  print(context.utxos(Address.from_primitive(f.read().strip())))
