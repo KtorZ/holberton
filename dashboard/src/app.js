@@ -114,7 +114,7 @@ function mkLeaderboard(players) {
   const n = fate.length;
   const d = fateDenominator(n);
   const availableFateRewards = TOTAL_REWARDS - totalControlRewards;
-  fate.sort(byAscendingDate).forEach((p, i) => {
+  fate.sort(byDescendingDate).forEach((p, i) => {
     const score = Math.floor(availableFateRewards * Math.pow(i + 1, SPLITTING_FACTOR) / d);
     scores.push({ ...p, score });
   });
@@ -160,25 +160,25 @@ function mkLeaderboard(players) {
 
   function byDescendingScore(a, b) {
     if (a.score === b.score) {
-      return byAscendingDate(a, b);
+      return byDescendingDate(b, a);
     } else {
       return b.score - a.score;
     }
   }
 
-  function byAscendingDate(a, b) {
+  function byDescendingDate(a, b) {
     if (a.choice == null) {
-      return -1;
-    }
-
-    if (b.choice == null) {
       return 1;
     }
 
+    if (b.choice == null) {
+      return -1;
+    }
+
     if (a.choice.slot === b.choice.slot) {
-      return a.choice.blockIndex - b.choice.blockIndex;
+      return b.choice.blockIndex - a.choice.blockIndex;
     } else {
-      return a.choice.slot - b.choice.slot;
+      return b.choice.slot - a.choice.slot;
     }
   }
 }
