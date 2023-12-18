@@ -1,5 +1,15 @@
 const API_URL = "https://kupo-faithful-priority-kc9tx9.us1.demeter.run";
 
+const START_DATE = new Date("2023-12-19T14:00:00Z");
+const END_DATE = new Date("2023-12-19T16:00:00Z");
+
+// Entry format:
+//
+//     {
+//       "name": "Matthias",
+//       "address": "addr_test1vpy32yjqdkvmq009lfxs8hwjklcy0m4kdqtnryt0hqply0gcsr5w4"
+//     }
+//
 const PLAYER_NAMES = "players.json";
 
 const STRATEGY_CONTROL = "control";
@@ -10,8 +20,17 @@ const TOTAL_REWARDS = 100;
 const MAX_CONTROL = 50;
 const SPLITTING_FACTOR = 1;
 
+const REFERENCE_SLOT = { date: new Date("2022-10-28T01:00:15Z"), slot: 259215 };
+const START_SLOT = getSlot(START_DATE);
+const END_SLOT = getSlot(END_DATE);
+
+function getSlot(when) {
+  const delta = when - REFERENCE_SLOT.date;
+  return Math.round(delta / 1000) + REFERENCE_SLOT.slot;
+}
+
 function getPlayers(playerNames) {
-  return fetch(`${API_URL}/matches?order=oldest_first&created_after=35721000`)
+  return fetch(`${API_URL}/matches?order=oldest_first&created_after=${START_SLOT}&created_before=${END_SLOT}`)
     .then(res => res.json())
     .then(results => {
       const utxos = new Map();
@@ -216,9 +235,47 @@ function viewPlayer({ name, address, score, rank }) {
 function viewLeaderboard(domElement, playerNames) {
   return getPlayers(playerNames)
     .then(players => {
-      domElement.replaceChildren(...mkLeaderboard(players).map(viewPlayer));
+      if (players.length > 0) {
+        domElement.replaceChildren(...mkLeaderboard(players).map(viewPlayer));
+      }
     })
     .catch(console.warn);
+}
+
+function viewCountdown(domElement, now) {
+  if (now >= END_DATE) {
+    domElement.querySelector('#hours').innerText = "--";
+    domElement.querySelector('#minutes').innerText = "--";
+    domElement.querySelector('#seconds').innerText = "--";
+  } else if (now < START_DATE) {
+    const [hours, minutes, seconds] = explode(START_DATE - now);
+    domElement.querySelector('#hours').innerText = fmtTime(hours);
+    domElement.querySelector('#minutes').innerText = fmtTime(minutes);
+    domElement.querySelector('#seconds').innerText = fmtTime(seconds);
+  } else {
+    const [hours, minutes, seconds] = explode(END_DATE - now);
+    domElement.querySelector('#hours').innerText = fmtTime(hours);
+    domElement.querySelector('#minutes').innerText = fmtTime(minutes);
+    domElement.querySelector('#seconds').innerText = fmtTime(seconds);
+  }
+
+  function explode(t) {
+    const hms = 3600000;
+    const h = Math.floor(t / hms);
+
+    const mms = 60000;
+    const m = Math.floor((t - h * hms) / mms);
+
+    const sms = 1000;
+    const s = Math.floor((t - h * hms - m * mms) / sms);
+
+    return [h, m, s];
+  }
+
+  function fmtTime(t) {
+    return `00${t}`.slice(-2);
+  }
+
 }
 
 function withPlayerNames(cb) {
@@ -230,9 +287,10 @@ function withPlayerNames(cb) {
     });
 }
 
-window.app = function app(domElement) {
+window.app = function app(leaderboard, countdown) {
+  setInterval(() => viewCountdown(countdown || document.querySelector('#countdown'), new Date()), 1000);
   withPlayerNames(playerNames => {
-    viewLeaderboard(domElement, playerNames)
-      .then(() => setTimeout(() => app(domElement), 5000));
+    viewLeaderboard(leaderboard, playerNames)
+      .then(() => setTimeout(() => app(leaderboard), 10000));
   });
 }
